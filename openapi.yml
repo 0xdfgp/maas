@@ -1,0 +1,556 @@
+openapi: "3.0.2"
+info:
+  title: "Shotl MAAS"
+  description: "<p>Shotl MaaS API permits integrating demand-responsive transport services provided by Shotl with a third party platform offering multi-modal mobility, as a MaaS operator or a journey planner.</p> <p>Mirroring the functions of the Shotl App for passengers available in iOS and Android markets, it permits to estimate times and book rides within any of the areas where Shotl is currently offering transportation."
+  termsOfService: "https://shotl.com/terms-and-conditions</p>"
+  contact:
+    name: "IT Team"
+    email: "it-support@shotl.com"
+  license:
+    name: "Propietary software"
+    url: ""
+  version: "1.0.0-beta"
+servers: 
+  - url: "https://api.shotl.com"
+    description: "Live"
+  - url: "https://sandbox.shotl.com"
+    description: "Sandbox for developers"
+security:
+  - jwt: ['secret']    
+  - apiKey: ['secret']
+paths:
+  /login:
+    post:
+      operationId: "loginUser"
+      security:
+        - apiKey: ['secret']
+      summary: "User login"
+      description: "The token received will be a Json Web Token with area and user data inside it."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'    
+      responses:
+        200:
+          description: "Login success"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcmVhIjoiMTIzNDU2Nzg5MCIsInVzZXIiOiIxMjM0NTY3ODkwIn0.PmphxsTAY7iOERtrn3h8-rsaO8yEwDAFsthtNjKGYdY"
+                  token_type:
+                    type: string
+                    example: "Bearer"                    
+                  expires_at:
+                    type: number
+                    example: 1584368422
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'        
+  /register:
+    post:
+      operationId: "registerUser"
+      security:
+        - apiKey: ['secret']
+      summary: "User sign up"
+      description: "The token received will be a Json Web Token with area and user data inside it."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        201:
+          description: "Register success"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Username:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcmVhIjoiMTIzNDU2Nzg5MCIsInVzZXIiOiIxMjM0NTY3ODkwIn0.PmphxsTAY7iOERtrn3h8-rsaO8yEwDAFsthtNjKGYdY"
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'               
+  /rides:
+    post:
+      operationId: "createRide"
+      summary: "Creates a new pending ride (draft)."
+      description: "When you want to schedule a new ride, you need to create a draft in order to accept the conditions of pickup and drop-off. It's not definitive, but it guarantees the specified availability"
+      requestBody:
+        description: "Ride request"
+        content:
+          application/json:
+            schema:
+              type: "object"
+              required: ["type", "desiredPickupLocation", "desiredDropoffLocation", "passengers"]
+              properties:
+                type:
+                  type: "string"
+                  enum:
+                    - "ride_now"
+                    - "schedule_ride"
+                desiredPickupLocation:
+                  description: "Location where the user wants to be picked up"
+                  allOf:
+                    - $ref: '#/components/schemas/GeoLocation'
+                desiredDropoffLocation:
+                  description: "Location where the user wants to be taken"
+                  allOf:  
+                    - $ref: '#/components/schemas/GeoLocation'                
+                passengers:
+                  description: "Information about passengers count. It could be regular or wheelchair."
+                  type: "array"
+                  items:
+                    type: "object"
+                    properties:
+                      type:
+                        type: "string"
+                        enum:
+                        - "regular"
+                        - "wheelchair"
+                      count:
+                        type: "number"
+                        format: "integer"
+                        example: 2
+                desiredPickupTime:
+                  description: "Location where the user wants to be picked up. Only applicable when the type is 'schedule_ride'. Otherwise will be ignored"
+                  type: "number"
+                  format: "long"
+                  example: 1584356105
+      responses:
+        201:
+          description: "Ride created"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+    get:
+      operationId: "getRides"
+      summary: "All related rides with a user"
+      description: "All confirmed rides by a user. It doesn't include drafts (rides without confirm)"
+      responses:
+        200:
+          description: "List of rides"
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  $ref: '#/components/schemas/Ride'
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+  /rides/{id}:
+    get:
+      operationId: "getRide"
+      summary: "Detail of a ride"
+      description: "The detail of a ride. Please note that a unconfirmed ride (draft) may be removed from our system if it hasn't been confirmed after a time (time specified by configuration)"
+      parameters: 
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        200:
+          description: "Ride's detail"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'      
+  /rides/{id}/confirm:
+    post:
+      operationId: "confirmRide"
+      summary: "Confirms a ride."
+      description: "From the moment a trip is confirmed, it will be available to be included in a route."
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"      
+      responses:
+        204:
+          description: "Ride confirmed"
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'         
+  /rides/{id}/pay:
+    post:
+      operationId: "payRide"
+      summary: "Marks a ride as paid either sets the payment method id"
+      description: "You can mark a ride as paid either send us the payment method id to be used during the payment process. Your account has to be enabled the payments module to be able to use this feature."
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        description: "Pay request"
+        content:
+          application/json:
+            schema:
+              type: "object"
+              required: ["paid"]
+              properties:
+                paid:
+                  type: "boolean"
+                  example: false
+                paymentMethodId:
+                  type: "string"
+                  example: "pm_123456789"
+                provider:
+                  type: "string"
+                  enum:
+                  - "stripe"
+      responses:
+        204:
+          description: "Payment set successfully"
+        400:
+          $ref: '#/components/responses/BadRequest'  
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'               
+  /rides/{id}/cancel:
+    post:
+      operationId: "cancelRide"
+      summary: "Cancels a ride"
+      description: "A ride can be cancelled at any moment if the status is scheduled, driver_launched or user_launched. Otherwise, it won't be possible."
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        description: "Pay request"
+        content:
+          application/json:
+            schema:
+              type: "object"
+              required: ["paid"]
+              properties:
+                paid:
+                  type: "boolean"
+                  example: false
+                paymentMethodId:
+                  type: "string"
+                  example: "pm_123456789"
+                provider:
+                  type: "string"
+                  enum:
+                  - "stripe"
+      responses:
+        204:
+          description: "Payment set successfully"
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'      
+        423:
+          $ref: '#/components/responses/BadRequest'       
+  /rides/{id}/vehicle:
+    get:
+      operationId: "getRideVehicle"
+      summary: "Detail of the vehicle assigned to a ride"
+      description: "Shotl algoritms may change the assigned vehicle at any moment if they considers it more efficient. It's recommended to check it periodically. On the other hand, it can be null if there is no vehicle assigned"
+      parameters: 
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        200:
+          description: "Vehicle's detail"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'               
+  /rides/{id}/vehicleLocation:
+    get:
+      operationId: "getRideVehicleLocation"
+      summary: "Last location reported from the vehicle"
+      description: "Location is reported if there is a vehicle assigned to the given ride. It there is no vehicle the response will be null."
+      parameters: 
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        200:
+          description: "Last location"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeoLocation'
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'                    
+  /rides/{id}/predictedTimes:
+    get:
+      operationId: "getRidePredictedTimes"
+      summary: "Pickup and dropoff predicted times"
+      description: "Predicted times may differ from desired and scheduled times depending on traffic conditions or any other reason. It is recommended to let the user know this information for a better experience."
+      parameters: 
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        200:
+          description: "Predicted times"
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["predictedPickupTime", "predictedDropoffTime"]
+                properties:
+                  predictedPickupTime:
+                    type: "number"
+                    example: 1584368422
+                  predictedDropoffTime:
+                    type: "number"
+                    example: 1584368422                    
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'    
+  /rides/{id}/status:
+    get:
+      operationId: "getRideStatus"
+      summary: "Ride status"
+      description: "Status of a ride"
+      parameters: 
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        200:
+          description: "Status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RideStatus'
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'      
+  /webbhooks:
+    get:
+      operationId: "getWebHooks"
+      summary: "List of webhooks"
+      description: "Webhooks configured to receive events from shotl systems"
+      responses:
+        200:
+          description: "List of webhooks"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebHooks'    
+        400:
+          $ref: '#/components/responses/BadRequest'    
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'                  
+    patch:
+      operationId: "patchWebHooks"
+      summary: "Webhooks configuration"
+      description: "It sets the Webhooks where shotl system will send the events on real time"
+      requestBody:
+        description: "Ride request"
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebHooks'
+      responses:
+        204:
+          description: "Webhooks updated"
+        400:
+          $ref: '#/components/responses/BadRequest'  
+        401:
+          $ref: '#/components/responses/Unauthorized'                
+        404:
+          $ref: '#/components/responses/NotFound'                 
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-KEY      
+    jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      x-bearerInfoFunc: app.decode_token
+  schemas:
+    Error:
+      type: "object"
+      properties:
+        message:
+          type: "string"
+          example: "Error message"
+        code:
+          type: "string"
+          example: "X000000"
+    Ride:
+      type: "object"
+      properties:
+        id: 
+          type: "string"
+        status:
+          $ref: '#/components/schemas/RideStatus'
+        desiredPickupLocation:
+          description: "Location where the user wants to be picked up"
+          allOf:
+            - $ref: '#/components/schemas/GeoLocation'
+        desiredDropoffLocation:
+          description: "Location where the user wants to be taken"
+          allOf:  
+            - $ref: '#/components/schemas/GeoLocation'
+        scheduledPickupLocation:
+          description: "Scheduled location where pick up the user"
+          allOf:
+            - $ref: '#/components/schemas/GeoLocation'            
+        scheduledDropoffLocation:
+          description: "Scheduled location where to take the user"
+          allOf:  
+            - $ref: '#/components/schemas/GeoLocation'                       
+        scheduledPickupTime:
+          description: "Scheduled time to pickup up the user. Unix timestamp"
+          type: number
+          example: 1584368422
+    GeoLocation:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum:
+          - "point"
+        latitude:
+          type: "number"
+          format: "double"
+          example: 41.4907739
+        longitude:
+          type: "number"
+          format: "double"
+          example: 2.0734611
+    RideStatus:
+      type: string
+      enum:
+      - "draft"
+      - "scheduled"
+      - "driver_launched"
+      - "user_launched"
+      - "onboard"
+      - "noshow"
+      - "finished"
+      - "early_dropoff"
+      - "cancelled"      
+    Vehicle:
+      type: "object"
+      required: ["name", "plateNumber"]
+      properties:
+        name:
+          type: "string"
+          example: "Shuttle A400"
+        plateNumber:
+          type: "string"
+          example: "4332-LTD"
+    WebHooks:
+      type: "object"
+      required: ["driverHasArrived", "userDidntShow", "nextToDropoff"]
+      properties:
+        driverHasArrived:
+          type: "string"
+          nullable: true
+          example: "https://api.example.com/webhooks/driver-has-arrived"
+        userDidntShow:
+          type: "string"
+          nullable: true
+          example: "https://api.example.com/webhooks/user-didnt-show"
+        nextToDropoff:
+          type: "string"
+          nullable: true
+          example: "https://api.example.com/webhooks/user-next-to-dropoff"       
+    User:          
+      type: "object"
+      required: ["userName", "password"]
+      properties:
+        userName:
+          type: "string"
+          example: "965b0cd7-02ec-4514-834d-1f7426dd547b"
+        password:
+          type: "string"
+          example: "5f4dcc3b5aa765d61d8327deb882cf99"          
+  responses:
+    BadRequest:
+      description: "Bad request"
+      content:
+        applicaion/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: "Resource not found"
+      content:
+        applicaion/json:
+          schema:
+            $ref: '#/components/schemas/Error'         
+    Unauthorized:
+      description: "Unauthorized"
+      content:
+        applicaion/json:
+          schema:
+            $ref: '#/components/schemas/Error'                
+    Locked:
+      description: "Resource locked"
+      content:
+        applicaion/json:
+          schema:
+            $ref: '#/components/schemas/Error'                     
+
+                
